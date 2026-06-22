@@ -2,74 +2,188 @@
 
 Small, readable Timer HAL for Microchip dsPIC33AK devices.
 
-This repository is intended to contain reusable timer services extracted from
-the dsPIC33AK evaluation projects. The goal is not to hide everything behind a
-framework, but to provide a compact timer layer that is easy to read, test,
-modify, and adapt.
+This repository provides a Timer1-based 1 ms monotonic tick HAL extracted from
+`dspic33ak-hal-starter`. The goal is not to create a full timer framework, but
+to provide a compact, explicit, easy-to-review tick source for evaluation,
+FAE demos, and early software architecture experiments.
 
 ## Status
 
-Initial public repository bootstrap.
-
-The first Timer1 1 ms tick implementation has been validated in
-`dspic33ak-hal-starter` before creating this standalone HAL repository.
-
-Current validation baseline:
+Current validation target:
 
 * Device: dsPIC33AK512MPS512
 * Compiler: XC-DSC v3.31.01
 * DFP: Microchip dsPIC33AK-MP DFP 1.3.185 or compatible
 * Validation project: `dspic33ak-hal-starter`
 * Validation branch: `hal-timer-integration`
+* Validation commit: `0823b5d`
 
-## Design policy
+Validated behavior in `dspic33ak-hal-starter`:
+
+* 1 Hz heartbeat continued to run
+* UART startup log continued to run
+* I2C scan and I2C loopback continued to run
+* CAN internal loopback / live timeout path continued to run
+* RGB LED / switch demo continued to run
+* Timer1 vector was application-owned and forwarded to the HAL handler
+
+`dsPIC33AK128MC106` is expected to be compatible by Timer1 register symmetry,
+but should be listed as hardware-validated only after a final HAL build is tested
+on that target.
+
+## Design Policy
 
 This HAL is intentionally small.
 
-* Timer ownership is explicit.
-* Board/application code owns clock bring-up.
-* Board/application code owns pin/PPS routing when relevant.
-* HAL-owned interrupt vectors must be documented clearly.
-* No RTOS dependency is required.
+* Timer clock frequency is supplied by the caller.
+* Clock tree and PLL setup are outside this HAL.
+* The application owns the Timer1 interrupt vector.
+* The HAL owns Timer1 registers after successful init.
+* No busy-wait delay API is provided.
+* No RTOS or scheduler dependency exists.
 * No dynamic memory allocation is used.
+* No XC-DSC / DFP bitfield types are exposed in the public API.
 
-## Initial scope
+## Scope
 
-Planned first import:
+In scope:
 
-* Timer1-based 1 ms tick service
-* Monotonic millisecond counter
-* Simple blocking timeout helper usage by consumer projects
-* Documentation for Timer1 ownership and limitations
+* Timer1-based 1 ms monotonic tick
+* Timeout callback source for other HALs and application code
+* Configurable Timer1 input clock
+* Configurable Timer1 interrupt priority
+* Init / deinit
+* Presence and initialized-state queries
+* Application-owned interrupt forwarding
 
-Out of scope for the first public import:
+Out of scope:
 
-* Full timer peripheral abstraction
-* PWM / output compare / input capture
-* RTOS scheduler integration
-* Timer2 high-resolution profiling unless separately validated
-* Production-certified timing framework
+* Timer2 high-resolution profiling
+* RTOS software timers
+* Busy-wait delay functions
+* Capture / compare / PWM
+* External pulse counting
+* Gated timer mode
+* Callback scheduler
+* Generic multi-instance timer abstraction
 
-## Repository layout
+## Files
 
 ```text
 src/
-  Timer HAL source files
+  dspic33ak_tick_timer.c
+  dspic33ak_tick_timer.h
 docs/
-  Design notes and migration notes
+  tick_timer_hal_design.md
 ```
 
-## Relationship to starter projects
+## Basic Usage
 
-The Timer HAL is developed and hardware-validated in starter/evaluation projects
-first, then moved here once the behavior is small, readable, and reusable.
+The board/application code brings up the clock tree, then passes the actual
+Timer1 input clock to the HAL:
 
-Known validation source:
+```c
+#include "dspic33ak_tick_timer.h"
 
-* `dspic33ak-hal-starter` branch `hal-timer-integration`
+const dspic33ak_tick_timer_config_t tick_timer_config = {
+    .timer_clk_hz = 100000000u,
+    .irq_priority = 4u,
+    .run_in_idle = false,
+};
+
+if (dspic33ak_tick_timer_init(&tick_timer_config) != DSPIC33AK_TICK_TIMER_OK) {
+    while (1) {
+        Nop();
+    }
+}
+```
+
+The application owns the Timer1 interrupt vector and forwards it to the HAL:
+
+```c
+void __attribute__((interrupt, context)) _T1Interrupt(void)
+{
+    dspic33ak_tick_timer_irq_handler();
+}
+```
+
+Timeout users can pass the getter directly:
+
+```c
+.get_ms = dspic33ak_tick_timer_get_ms,
+```
+
+Use unsigned-difference timing for wraparound-safe intervals:
+
+```c
+uint32_t now = dspic33ak_tick_timer_get_ms();
+if ((uint32_t)(now - previous) >= interval_ms) {
+    previous = now;
+}
+```
+
+## API Summary
+
+* `dspic33ak_tick_timer_init()` - validate config, select prescaler, configure
+  Timer1, clear the counter, enable the interrupt, and start Timer1.
+* `dspic33ak_tick_timer_deinit()` - disable the interrupt, stop Timer1, clear
+  Timer1 registers, and mark the HAL uninitialized.
+* `dspic33ak_tick_timer_is_present()` - return whether Timer1 SFRs are present
+  at compile time.
+* `dspic33ak_tick_timer_is_initialized()` - return the internal initialized
+  state.
+* `dspic33ak_tick_timer_get_ms()` - return the current millisecond counter.
+* `dspic33ak_tick_timer_irq_handler()` - clear the Timer1 interrupt flag and
+  increment the millisecond counter.
+
+## Timer Ownership
+
+Timer1 is reserved by this HAL after successful init.
+
+The HAL does not define `_T1Interrupt()`. Consumer projects must provide the
+interrupt vector and call `dspic33ak_tick_timer_irq_handler()` from it.
+
+## Prescaler and Period Calculation
+
+The HAL targets a fixed 1 kHz interrupt rate so that
+`dspic33ak_tick_timer_get_ms()` is always a true millisecond source.
+
+Prescaler candidates are checked in this order:
+
+```text
+1:1, 1:8, 1:64, 1:256
+```
+
+The first candidate whose rounded count fits in the 32-bit PR1 range is used:
+
+```text
+counts = round(timer_clk_hz / (prescaler * 1000))
+PR1 = counts - 1
+```
+
+At 100 MHz Timer1 input:
+
+```text
+prescaler = 1:1
+TCKPS = 0b00
+PR1 = 99999
+```
+
+## Known Follow-Up
+
+Before declaring the standalone repository production-ready, define the tick
+error policy for input clocks that cannot generate an exact 1 ms period. The
+current hal-starter validation uses 100 MHz Timer1 input, where the generated
+period is exact.
+
+## Notes
+
+* This repository does not include Microchip DFP header files.
+* This HAL is the timer layer only; clock setup belongs to the board/application.
+* CMSIS or RTOS timer wrappers, if needed later, should live in separate layers.
 
 ## License
 
-MIT No Attribution License (MIT-0). See `LICENSE`.
+MIT No Attribution License (MIT-0). See [LICENSE](LICENSE).
 
 Attribution is appreciated but not required.

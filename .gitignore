@@ -18,3 +18,5 @@ debug/
 # Logs
 *.log
 *.log.inx
+MPLABXLog.xml
+MPLABXLog.xml.lck
