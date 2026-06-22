@@ -1,0 +1,20 @@
+# Build output
+build/
+dist/
+debug/
+*.o
+*.d
+*.elf
+*.hex
+*.map
+
+# MPLAB X local/generated files
+*.X/nbproject/private/
+*.X/nbproject/Makefile-*.mk
+*.X/nbproject/Makefile-genesis.properties
+*.X/nbproject/Makefile-variables.mk
+*.X/.generated_files/
+
+# Logs
+*.log
+*.log.inx
