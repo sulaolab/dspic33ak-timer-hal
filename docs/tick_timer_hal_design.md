@@ -16,12 +16,12 @@ Validated source project:
 
 - Repository: `sulaolab/dspic33ak-hal-starter`
 - Branch: `hal-timer-integration`
-- Commit: `0823b5d`
+- Commit: `0823b5d2748c5bde1c466d5371b5b8bf4308b11d`
 - Validated device: `dsPIC33AK512MPS512`
 - Toolchain: XC-DSC v3.31.01
 - DFP: Microchip dsPIC33AK-MP DFP 1.3.185 or compatible
 
-Validation behavior:
+Integration regression checks:
 
 - UART startup log continued to run.
 - 1 Hz heartbeat continued to run.
@@ -29,6 +29,9 @@ Validation behavior:
 - CAN internal loopback / live timeout path continued to run.
 - RGB LED and switch demo continued to run.
 - The application-owned Timer1 vector forwarded to the HAL handler.
+
+Functional integration was validated. Absolute tick accuracy has not yet been
+independently characterized with oscilloscope or logic-analyzer measurement.
 
 ## Public API
 
@@ -82,6 +85,10 @@ The HAL configures:
 - `IPC6bits.T1IP`
 
 Other modules must not use Timer1 unless ownership is deliberately changed.
+
+The initial standalone repository targets devices with the validated Timer1 and
+interrupt-register layout. Other dsPIC33AK devices may require verification of
+`T1CON` / `TMR1` / `PR1`, `IFS1bits.T1IF`, `IEC1bits.T1IE`, and `IPC6bits.T1IP`.
 
 ## Interrupt Ownership
 
@@ -146,8 +153,10 @@ sequence.
 
 ## Counter Semantics
 
-The internal counter is a volatile `uint32_t` millisecond counter. It is cleared
-on successful init and increments in `dspic33ak_tick_timer_irq_handler()`.
+The internal counter is a volatile `uint32_t` millisecond counter. The
+initialized flag is also volatile because it is written by normal code and read
+from the interrupt handler. The counter is cleared on successful init and
+increments in `dspic33ak_tick_timer_irq_handler()`.
 
 After deinit, `dspic33ak_tick_timer_get_ms()` returns the last counter value, but
 Timer1 is stopped so the value no longer advances.

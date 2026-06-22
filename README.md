@@ -1,6 +1,7 @@
 # dspic33ak-timer-hal
 
-Small, readable Timer HAL for Microchip dsPIC33AK devices.
+Small, readable Timer HAL for Microchip dsPIC33AK devices with the validated
+Timer1 and interrupt-register layout.
 
 This repository provides a Timer1-based 1 ms monotonic tick HAL extracted from
 `dspic33ak-hal-starter`. The goal is not to create a full timer framework, but
@@ -16,9 +17,11 @@ Current validation target:
 * DFP: Microchip dsPIC33AK-MP DFP 1.3.185 or compatible
 * Validation project: `dspic33ak-hal-starter`
 * Validation branch: `hal-timer-integration`
-* Validation commit: `0823b5d`
+* Validation commit: `0823b5d2748c5bde1c466d5371b5b8bf4308b11d`
+* Standalone compile check: `src/dspic33ak_tick_timer.c` compiles for
+  `33AK512MPS512` with XC-DSC v3.31.01 / DFP 1.3.185.
 
-Validated behavior in `dspic33ak-hal-starter`:
+Integration regression checks in `dspic33ak-hal-starter`:
 
 * 1 Hz heartbeat continued to run
 * UART startup log continued to run
@@ -27,9 +30,26 @@ Validated behavior in `dspic33ak-hal-starter`:
 * RGB LED / switch demo continued to run
 * Timer1 vector was application-owned and forwarded to the HAL handler
 
+Functional integration was validated. Absolute tick accuracy has not yet been
+independently characterized with oscilloscope or logic-analyzer measurement.
+
+## Supported Devices
+
+Hardware validated:
+
+* dsPIC33AK512MPS512
+
+Register-level compatibility reviewed:
+
+* dsPIC33AK128MC106
+
 `dsPIC33AK128MC106` is expected to be compatible by Timer1 register symmetry,
 but should be listed as hardware-validated only after a final HAL build is tested
 on that target.
+
+Other dsPIC33AK devices may require verification of the Timer1 and interrupt
+register layout, especially `T1CON` / `TMR1` / `PR1`, `IFS1bits.T1IF`,
+`IEC1bits.T1IE`, and `IPC6bits.T1IP`.
 
 ## Design Policy
 
@@ -77,12 +97,23 @@ docs/
   tick_timer_hal_design.md
 ```
 
+## Integration
+
+1. Add `src/dspic33ak_tick_timer.c` to the project.
+2. Add `src/` to the compiler include path.
+3. Include `dspic33ak_tick_timer.h`.
+4. Supply the actual Timer1 input clock in `timer_clk_hz`.
+5. Define `_T1Interrupt()` in the application and forward it to
+   `dspic33ak_tick_timer_irq_handler()`.
+
 ## Basic Usage
 
 The board/application code brings up the clock tree, then passes the actual
 Timer1 input clock to the HAL:
 
 ```c
+#include <xc.h>
+
 #include "dspic33ak_tick_timer.h"
 
 const dspic33ak_tick_timer_config_t tick_timer_config = {
@@ -145,8 +176,9 @@ interrupt vector and call `dspic33ak_tick_timer_irq_handler()` from it.
 
 ## Prescaler and Period Calculation
 
-The HAL targets a fixed 1 kHz interrupt rate so that
-`dspic33ak_tick_timer_get_ms()` is always a true millisecond source.
+The HAL targets a fixed 1 kHz interrupt rate so that each counter increment
+represents approximately 1 ms. The period is exact when the supplied Timer1
+clock is evenly divisible by 1000.
 
 Prescaler candidates are checked in this order:
 
