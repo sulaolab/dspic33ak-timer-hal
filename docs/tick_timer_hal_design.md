@@ -16,10 +16,15 @@ Validated source project:
 
 - Repository: `sulaolab/dspic33ak-hal-starter`
 - Branch: `hal-timer-integration`
-- Commit: `0823b5d2748c5bde1c466d5371b5b8bf4308b11d`
+- Commit: `8feb1e82ca61073a6d81397e2c9095e3ea83fafe`
 - Validated device: `dsPIC33AK512MPS512`
 - Toolchain: XC-DSC v3.31.01
 - DFP: Microchip dsPIC33AK-MP DFP 1.3.185 or compatible
+
+Standalone compile checks:
+
+- `33AK512MPS512` with Microchip dsPIC33AK-MP DFP 1.3.185
+- `33AK128MC106` with Microchip dsPIC33AK-MC DFP 1.2.125
 
 Integration regression checks:
 
@@ -80,15 +85,15 @@ The HAL configures:
 - `T1CON`
 - `TMR1`
 - `PR1`
-- `IFS1bits.T1IF`
-- `IEC1bits.T1IE`
-- `IPC6bits.T1IP`
+- `_T1IF`
+- `_T1IE`
+- `_T1IP`
 
 Other modules must not use Timer1 unless ownership is deliberately changed.
 
 The initial standalone repository targets devices with the validated Timer1 and
-interrupt-register layout. Other dsPIC33AK devices may require verification of
-`T1CON` / `TMR1` / `PR1`, `IFS1bits.T1IF`, `IEC1bits.T1IE`, and `IPC6bits.T1IP`.
+interrupt-symbol layout. Other dsPIC33AK devices may require verification of
+`T1CON` / `TMR1` / `PR1`, `_T1IF`, `_T1IE`, and `_T1IP`.
 
 ## Interrupt Ownership
 
@@ -143,7 +148,8 @@ PR1 = 99999
 - `irq_priority == 0`
 - `irq_priority > 7`
 - clocks whose calculated period cannot fit in 32-bit `PR1`
-- devices where Timer1 SFRs are not present at compile time
+- devices where the required Timer1 SFRs or interrupt symbols are not present
+  at compile time
 
 If init fails, Timer1 registers are not modified by this HAL's configuration
 sequence.
@@ -158,8 +164,9 @@ initialized flag is also volatile because it is written by normal code and read
 from the interrupt handler. The counter is cleared on successful init and
 increments in `dspic33ak_tick_timer_irq_handler()`.
 
-After deinit, `dspic33ak_tick_timer_get_ms()` returns the last counter value, but
-Timer1 is stopped so the value no longer advances.
+Before successful init and after deinit, `dspic33ak_tick_timer_get_ms()` returns
+0. `dspic33ak_tick_timer_deinit()` stops Timer1, clears the Timer1 registers,
+clears the millisecond counter, and marks the HAL uninitialized.
 
 Users should compare times with unsigned subtraction:
 
@@ -188,7 +195,6 @@ period is exact.
 
 ## Non-Goals
 
-- Timer2 high-resolution profiling.
 - Generic timer instance abstraction.
 - Capture, compare, PWM, gated timer, or external counter modes.
 - Busy-wait delay API.
