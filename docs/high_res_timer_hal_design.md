@@ -30,6 +30,12 @@ Integration regression checks:
 - Timer2 high-resolution counter initialized successfully.
 - Raw count progression was observed at boot.
 - 100 MHz conversion sanity checks passed.
+
+Additional consumer validation:
+
+- Repository: `sulaolab/perseus_512_96K`
+- Branch: `main`
+- Commit: `5201e7887f5dda33942076359a75042b66e4f7fc`
 - Audio/TDM load-monitor reporting continued to run through the public API.
 
 Functional integration was validated. Absolute Timer2 frequency accuracy has not
@@ -148,7 +154,8 @@ After successful init:
 
 - `dspic33ak_high_res_timer_get_count()` returns the raw Timer2 count.
 - `dspic33ak_high_res_timer_elapsed_count(start)` returns `TMR2 - start`.
-- conversion helpers truncate integer results.
+- conversion helpers truncate integer results and saturate to `UINT32_MAX` if
+  the converted value does not fit in `uint32_t`.
 
 The `*_us_x10()` helpers return 0.1 us units. For example, a return value of
 1234 means 123.4 us.

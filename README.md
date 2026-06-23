@@ -197,12 +197,15 @@ if (dspic33ak_high_res_timer_init(&high_res_timer_config) !=
 For ISR profiling, store raw counts in the ISR and convert later:
 
 ```c
+/* ISR or measured path */
 uint32_t start_count = dspic33ak_high_res_timer_get_count();
 
 /* measured work */
 
 uint32_t elapsed_count =
     dspic33ak_high_res_timer_elapsed_count(start_count);
+
+/* Foreground/status path */
 uint32_t elapsed_us_x10 =
     dspic33ak_high_res_timer_count_to_us_x10(elapsed_count);
 ```
@@ -240,9 +243,13 @@ High-resolution timer:
 - `dspic33ak_high_res_timer_elapsed_count()` - return wraparound-safe raw count
   elapsed from a saved start count.
 - `dspic33ak_high_res_timer_count_to_us()` - convert raw counts to integer
-  microseconds.
+  microseconds, saturating to `UINT32_MAX` on overflow.
 - `dspic33ak_high_res_timer_count_to_us_x10()` - convert raw counts to 0.1 us
-  units.
+  units, saturating to `UINT32_MAX` on overflow.
+- `dspic33ak_high_res_timer_elapsed_us()` - return elapsed time from a saved
+  count in integer microseconds.
+- `dspic33ak_high_res_timer_elapsed_us_x10()` - return elapsed time from a saved
+  count in 0.1 us units.
 
 ## Timer Ownership
 
@@ -294,8 +301,10 @@ PR2 = 0xFFFFFFFF
 At 100 MHz Timer2 input, one count is 10 ns and a full 32-bit cycle is about
 42.95 seconds.
 
-Conversion helpers use 64-bit division. Interrupt code should normally store raw
-counts and convert them later in foreground/status code.
+Conversion helpers use 64-bit division. Results are truncated to the requested
+unit and saturate to `UINT32_MAX` if the converted value does not fit in
+`uint32_t`. Interrupt code should normally store raw counts and convert them
+later in foreground/status code.
 
 ## Known Follow-Up
 
