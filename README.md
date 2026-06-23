@@ -1,5 +1,10 @@
 # dspic33ak-timer-hal
 
+> Want to run it on hardware first?
+> Start with [dspic33ak-hal-starter](https://github.com/sulaolab/dspic33ak-hal-starter),
+> which vendors validated snapshots of the dsPIC33AK HAL repositories and
+> provides a ready-to-build MPLAB X project for the dsPIC33AK Curiosity board.
+
 Small, readable Timer HAL for Microchip dsPIC33AK devices with the validated
 Timer1 and interrupt-register layout.
 
