@@ -91,6 +91,7 @@ In scope:
 - Configurable Timer1 input clock
 - Configurable Timer2 input clock
 - Configurable Timer1 interrupt priority
+- Default Timer1 interrupt priority macro
 - Init / deinit
 - Presence and initialized-state queries
 - Application-owned interrupt forwarding for Timer1
@@ -139,7 +140,7 @@ Timer1 input clock to the tick HAL:
 
 const dspic33ak_tick_timer_config_t tick_timer_config = {
     .timer_clk_hz = 100000000u,
-    .irq_priority = 4u,
+    .irq_priority = DSPIC33AK_TICK_TIMER_DEFAULT_IRQ_PRIORITY,
     .run_in_idle = false,
 };
 
@@ -149,6 +150,10 @@ if (dspic33ak_tick_timer_init(&tick_timer_config) != DSPIC33AK_TICK_TIMER_OK) {
     }
 }
 ```
+
+`DSPIC33AK_TICK_TIMER_DEFAULT_IRQ_PRIORITY` is a recommended convenience value
+for the 1 ms tick. It is not a hardware requirement; applications can pass any
+valid priority from 1 through 7 when their interrupt ordering requires it.
 
 The application owns the Timer1 interrupt vector and forwards it to the HAL:
 
@@ -214,6 +219,8 @@ uint32_t elapsed_us_x10 =
 
 Tick timer:
 
+- `DSPIC33AK_TICK_TIMER_DEFAULT_IRQ_PRIORITY` - recommended convenience value
+  for `dspic33ak_tick_timer_config_t.irq_priority`.
 - `dspic33ak_tick_timer_init()` - validate config, select prescaler, configure
   Timer1, clear the counter, enable the interrupt, and start Timer1.
 - `dspic33ak_tick_timer_deinit()` - disable the interrupt, stop Timer1, clear

@@ -41,6 +41,8 @@ independently characterized with oscilloscope or logic-analyzer measurement.
 ## Public API
 
 ```c
+#define DSPIC33AK_TICK_TIMER_DEFAULT_IRQ_PRIORITY   4u
+
 dspic33ak_tick_timer_status_t dspic33ak_tick_timer_init(
     const dspic33ak_tick_timer_config_t *config);
 
@@ -72,6 +74,9 @@ typedef struct {
 configure PLLs, CLKGENs, or board clock routing.
 
 `irq_priority` must be 1 through 7. Priority 0 and values above 7 are rejected.
+`DSPIC33AK_TICK_TIMER_DEFAULT_IRQ_PRIORITY` provides the recommended convenience
+value used by the starter integration; applications can supply another valid
+priority when needed.
 
 `run_in_idle` maps to `T1CONbits.SIDL`: `false` stops Timer1 in CPU Idle,
 `true` lets Timer1 continue in Idle.
